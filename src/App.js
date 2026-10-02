@@ -1546,6 +1546,122 @@ const chapterMap = (value) => {
   return o;
 };
 
+
+/* ---------------- parsing data ----------------
+   Every inflected form in the paradigms above becomes a parsing
+   question. Nothing is invented: each form's parse comes from the
+   row / column / table it sits in (the same way your notes parse). */
+const ARTICLES = new Set(
+  ['ὁ', 'ἡ', 'τό', 'τὸ', 'τοῦ', 'τῆς', 'τῷ', 'τῇ', 'τόν', 'τὸν', 'τήν', 'τὴν', 'οἱ', 'αἱ', 'τά', 'τὰ',
+    'τῶν', 'τοῖς', 'ταῖς', 'τούς', 'τοὺς', 'τάς', 'τὰς'].map((x) => x.normalize('NFC'))
+);
+const cleanForm = (s) => {
+  let t = s.normalize('NFC').replace(/\s*\(-[^)]*\)$/, '').trim();
+  const w = t.split(' ');
+  if (w.length > 1 && ARTICLES.has(w[0])) t = w.slice(1).join(' ');
+  return t;
+};
+const CASE_ABBR = { Nominative: 'Nom', Genitive: 'Gen', Dative: 'Dat', Accusative: 'Acc' };
+const byId = (id) => PD.find((p) => p.id === id);
+
+const RECORDS = [];
+// nouns and personal pronouns: [paradigm id, lexical form, gender, category]
+[
+  ['phone', 'φωνή', 'Fem', 'Nouns'],
+  ['hemera', 'ἡμέρα', 'Fem', 'Nouns'],
+  ['logos', 'λόγος', 'Masc', 'Nouns'],
+  ['teknon', 'τέκνον', 'Neut', 'Nouns'],
+  ['sarx', 'σάρξ', 'Fem', 'Nouns'],
+  ['pneuma', 'πνεῦμα', 'Neut', 'Nouns'],
+  ['pron1t', 'ἐγώ', null, 'Pronouns'],
+  ['pron2t', 'σύ', null, 'Pronouns'],
+  ['pron3m', 'αὐτός', 'Masc', 'Pronouns'],
+  ['pron3f', 'αὐτός', 'Fem', 'Pronouns'],
+  ['pron3n', 'αὐτός', 'Neut', 'Pronouns'],
+].forEach(([id, lex, gen, cat]) => {
+  byId(id).groups[0].rows.forEach((r) => {
+    RECORDS.push({ kind: 'n', cat, lex, form: cleanForm(r[1]), case: CASE_ABBR[r[0]], num: 'Sg', gen, tr: r[2] });
+    RECORDS.push({ kind: 'n', cat, lex, form: cleanForm(r[3]), case: CASE_ABBR[r[0]], num: 'Pl', gen, tr: r[4] });
+  });
+});
+// relative pronoun: columns 1-6 are Sg Masc/Fem/Neut then Pl Masc/Fem/Neut
+byId('relt').groups[0].rows.forEach((r) => {
+  [[1, 'Sg', 'Masc'], [2, 'Sg', 'Fem'], [3, 'Sg', 'Neut'], [4, 'Pl', 'Masc'], [5, 'Pl', 'Fem'], [6, 'Pl', 'Neut']].forEach(
+    ([c, num, gen]) =>
+      RECORDS.push({ kind: 'n', cat: 'Relative pronoun', lex: 'ὅς ἥ ὅ', form: cleanForm(r[c]), case: CASE_ABBR[r[0]], num, gen, tr: r[7] })
+  );
+});
+// adjectives: group 0 = singular, group 1 = plural; translation is for the masculine only
+[['agathos', 'ἀγαθός'], ['pas', 'πᾶς']].forEach(([id, lex]) => {
+  byId(id).groups.forEach((g, gi) =>
+    g.rows.forEach((r) =>
+      ['Masc', 'Fem', 'Neut'].forEach((gen, k) =>
+        RECORDS.push({
+          kind: 'n', cat: 'Adjectives', lex, form: cleanForm(r[k + 1]), case: CASE_ABBR[r[0]],
+          num: gi === 0 ? 'Sg' : 'Pl', gen, tr: gen === 'Masc' ? r[4] : null,
+        })
+      )
+    )
+  );
+});
+// verbs: [paradigm id, lexical form, tense, voice, category]
+[
+  ['presAct', 'λύω', 'Pres', 'Act', 'Present'],
+  ['presPas', 'λύω', 'Pres', 'Midd/Pass', 'Present'],
+  ['impAct', 'λύω', 'Impf', 'Act', 'Imperfect'],
+  ['impPas', 'λύω', 'Impf', 'Midd/Pass', 'Imperfect'],
+  ['futAct', 'λύω', 'Fut', 'Act', 'Future'],
+  ['futMid', 'λύω', 'Fut', 'Mid', 'Future'],
+  ['futPas', 'λύω', 'Fut', 'Pass', 'Future'],
+  ['liqFut', 'μένω', 'Fut', 'Act', 'Future'],
+  ['aorAct', 'λύω', 'Aor', 'Act', 'Aorist'],
+  ['aorMid', 'λύω', 'Aor', 'Mid', 'Aorist'],
+  ['aorPas', 'λύω', 'Aor', 'Pass', 'Aorist'],
+  ['a2Act', 'λαμβάνω', 'Aor', 'Act', 'Aorist'],
+  ['a2Mid', 'λαμβάνω', 'Aor', 'Mid', 'Aorist'],
+  ['a2Pas', 'λαμβάνω', 'Aor', 'Pass', 'Aorist'],
+  ['liqAor', 'μένω', 'Aor', 'Act', 'Aorist'],
+  ['perfAct', 'λύω', 'Perf', 'Act', 'Perfect'],
+  ['perfPas', 'λύω', 'Perf', 'Midd/Pass', 'Perfect'],
+].forEach(([id, lex, tense, voice, cat]) => {
+  byId(id).groups[0].rows.forEach((r) => {
+    RECORDS.push({ kind: 'v', cat, lex, form: cleanForm(r[1]), tense, voice, person: r[0], num: 'Sg', tr: r[2] });
+    RECORDS.push({ kind: 'v', cat, lex, form: cleanForm(r[3]), tense, voice, person: r[0], num: 'Pl', tr: r[4] });
+  });
+});
+// contract verbs (present active), person like "1s" / "3p"
+[['agapao', 'ἀγαπάω'], ['poieo', 'ποιέω'], ['plerao', 'πληρόω']].forEach(([id, lex]) => {
+  byId(id).groups[0].rows.forEach((r) => {
+    RECORDS.push({
+      kind: 'v', cat: 'Present', lex, form: cleanForm(r[1]), tense: 'Pres', voice: 'Act',
+      person: r[0][0], num: r[0][1] === 's' ? 'Sg' : 'Pl', tr: null,
+    });
+  });
+});
+
+const FORMS = {};
+RECORDS.forEach((r) => {
+  (FORMS[r.form] = FORMS[r.form] || []).push(r);
+});
+const PARSE_CATS = ['Nouns', 'Pronouns', 'Relative pronoun', 'Adjectives', 'Present', 'Imperfect', 'Future', 'Aorist', 'Perfect'];
+const NOUN_FIELDS = [
+  { key: 'case', label: 'Case', opts: ['Nom', 'Gen', 'Dat', 'Acc'] },
+  { key: 'num', label: 'Number', opts: ['Sg', 'Pl'] },
+  { key: 'gen', label: 'Gender', opts: ['Masc', 'Fem', 'Neut', 'None'] },
+];
+const VERB_FIELDS = [
+  { key: 'tense', label: 'Tense', opts: ['Pres', 'Impf', 'Fut', 'Aor', 'Perf'] },
+  { key: 'voice', label: 'Voice', opts: ['Act', 'Midd/Pass', 'Mid', 'Pass'] },
+  { key: 'person', label: 'Person', opts: ['1', '2', '3'] },
+  { key: 'num', label: 'Number', opts: ['Sg', 'Pl'] },
+];
+const recVal = (r, key) => (r[key] === null || r[key] === undefined ? 'None' : r[key]);
+const parseText = (r) =>
+  (r.kind === 'n'
+    ? [r.lex, r.case, r.num, r.gen || '(no gender)']
+    : [r.lex, r.tense, r.voice, 'Ind', r.person, r.num]
+  ).join(', ') + (r.tr ? ', ' + r.tr : '');
+
 /* ---------------- small button ---------------- */
 function Btn({ kind, small, disabled, onClick, style, children }) {
   return (
@@ -1565,14 +1681,26 @@ function Btn({ kind, small, disabled, onClick, style, children }) {
   );
 }
 
+/* ---------------- navigation bar (Back + Home on every screen) ---------------- */
+function NavBar({ onBack, onHome, right }) {
+  return (
+    <nav style={styles.nav}>
+      <Btn kind="ghost" small onClick={onBack} style={{ marginBottom: 0 }}>← Back</Btn>
+      <Btn kind="ghost" small onClick={onHome} style={{ marginBottom: 0 }}>⌂ Home</Btn>
+      {right ? <span style={styles.navRight}>{right}</span> : null}
+    </nav>
+  );
+}
+
 /* ---------------- home ---------------- */
-function Home({ onVocab, onParadigms }) {
+function Home({ onVocab, onParadigms, onParsing }) {
   return (
     <section>
       <h1 style={styles.h1}>Greek trainer</h1>
       <p style={styles.sub}>Vocabulary and paradigms, semester 1</p>
       <Btn onClick={onVocab}>Vocabulary flashcards</Btn>
       <Btn kind="ghost" onClick={onParadigms}>Build a paradigm</Btn>
+      <Btn kind="ghost" onClick={onParsing}>Parsing practice</Btn>
     </section>
   );
 }
@@ -1637,6 +1765,7 @@ function Vocab({ onHome }) {
   if (stage === 'setup') {
     return (
       <section>
+        <NavBar onBack={onHome} onHome={onHome} />
         <h1 style={styles.h1}>Greek vocabulary</h1>
         <p style={styles.sub}>Merkle &amp; Plummer, chapters 1–23</p>
 
@@ -1683,7 +1812,6 @@ function Vocab({ onHome }) {
         </div>
 
         <Btn disabled={count === 0} onClick={begin} style={{ marginBottom: 0 }}>Start studying</Btn>
-        <button style={{ ...styles.link, marginTop: 12 }} onClick={onHome}>← Home</button>
       </section>
     );
   }
@@ -1694,10 +1822,7 @@ function Vocab({ onHome }) {
     const showGreek = dir === 'ge' ? !flipped : flipped;
     return (
       <section>
-        <div style={styles.top}>
-          <Btn kind="ghost" small onClick={() => setStage('setup')} style={{ marginBottom: 0 }}>Chapters</Btn>
-          <span style={{ ...styles.sub, margin: 0 }}>{done} of {total} learned</span>
-        </div>
+        <NavBar onBack={() => setStage('setup')} onHome={onHome} right={done + ' of ' + total + ' learned'} />
         <div style={styles.bar}>
           <i style={{ ...styles.barFill, width: (total ? (done / total) * 100 : 0) + '%' }} />
         </div>
@@ -1729,6 +1854,7 @@ function Vocab({ onHome }) {
   const m = Object.keys(missed).length;
   return (
     <section>
+      <NavBar onBack={() => setStage('setup')} onHome={onHome} />
       <div style={{ ...styles.panel, ...styles.done }}>
         <p style={styles.doneBig}>Deck complete</p>
         <p style={styles.sub}>{total} words done. {m} needed a second look.</p>
@@ -1760,10 +1886,7 @@ function Paradigms({ onHome }) {
     let last = null;
     return (
       <section>
-        <div style={styles.top}>
-          <Btn kind="ghost" small onClick={onHome} style={{ marginBottom: 0 }}>Back</Btn>
-          <strong>Paradigms</strong>
-        </div>
+        <NavBar onBack={onHome} onHome={onHome} right="Paradigms" />
         <div style={styles.panel}>
           {PD.map((p) => {
             const head = p.sec && p.sec !== last ? p.sec : null;
@@ -1806,10 +1929,7 @@ function Paradigms({ onHome }) {
 
   return (
     <section>
-      <div style={styles.top}>
-        <Btn kind="ghost" small onClick={() => setGame(null)} style={{ marginBottom: 0 }}>Paradigms</Btn>
-        <span style={{ ...styles.sub, margin: 0 }}>{title}</span>
-      </div>
+      <NavBar onBack={() => setGame(null)} onHome={onHome} right={title} />
       {!checked && (
         <p style={styles.sub}>Tap a form below, then tap the cell it belongs in. Drag also works.</p>
       )}
@@ -1901,9 +2021,171 @@ function Paradigms({ onHome }) {
   );
 }
 
+
+/* ---------------- parsing practice ---------------- */
+function Parsing({ onHome }) {
+  const [stage, setStage] = useState('setup'); // setup | quiz | finish
+  const [cats, setCats] = useState({});
+  const [qs, setQs] = useState([]);
+  const [i, setI] = useState(0);
+  const [ans, setAns] = useState({});
+  const [checked, setChecked] = useState(false);
+  const [result, setResult] = useState(null); // { best, valid, correct }
+  const [score, setScore] = useState(0);
+
+  const pool = [...new Set(RECORDS.filter((r) => cats[r.cat]).map((r) => r.form))];
+
+  const begin = () => {
+    setQs(shuffle(pool).slice(0, 10));
+    setI(0);
+    setScore(0);
+    setAns({});
+    setChecked(false);
+    setResult(null);
+    setStage('quiz');
+  };
+
+  if (stage === 'setup') {
+    return (
+      <section>
+        <NavBar onBack={onHome} onHome={onHome} />
+        <h1 style={styles.h1}>Parsing practice</h1>
+        <p style={styles.sub}>
+          You get an inflected form and parse it: case, number and gender for nouns, pronouns and adjectives;
+          tense, voice, person and number for verbs.
+        </p>
+        <div style={styles.panel}>
+          <h2 style={styles.h2}>What do you want to practise?</h2>
+          <div style={styles.chips}>
+            {PARSE_CATS.map((c) => (
+              <button
+                key={c}
+                aria-pressed={!!cats[c]}
+                onClick={() => setCats((s) => ({ ...s, [c]: !s[c] }))}
+                style={{ ...styles.chip, ...(cats[c] ? styles.chipOn : null) }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <p style={styles.count}>{pool.length} different forms</p>
+        </div>
+        <Btn disabled={pool.length === 0} onClick={begin} style={{ marginBottom: 0 }}>Start parsing</Btn>
+      </section>
+    );
+  }
+
+  if (stage === 'finish') {
+    return (
+      <section>
+        <NavBar onBack={() => setStage('setup')} onHome={onHome} />
+        <div style={{ ...styles.panel, ...styles.done }}>
+          <p style={styles.doneBig}>{score} / {qs.length}</p>
+          <p style={styles.sub}>forms parsed completely correct</p>
+          <Btn onClick={begin} style={{ marginBottom: 8 }}>Another round</Btn>
+          <Btn kind="ghost" onClick={() => setStage('setup')} style={{ marginBottom: 0 }}>Change what I practise</Btn>
+        </div>
+      </section>
+    );
+  }
+
+  const form = qs[i];
+  const recs = FORMS[form];
+  const kind = recs[0].kind;
+  const valid = recs.filter((r) => r.kind === kind);
+  const fields = kind === 'n' ? NOUN_FIELDS : VERB_FIELDS;
+  const ready = fields.every((f) => ans[f.key]);
+
+  const check = () => {
+    let best = valid[0];
+    let bestN = -1;
+    valid.forEach((r) => {
+      const n = fields.filter((f) => ans[f.key] === recVal(r, f.key)).length;
+      if (n > bestN) {
+        bestN = n;
+        best = r;
+      }
+    });
+    const correct = bestN === fields.length;
+    if (correct) setScore((s) => s + 1);
+    setResult({ best, correct });
+    setChecked(true);
+  };
+
+  const next = () => {
+    if (i + 1 >= qs.length) {
+      setStage('finish');
+      return;
+    }
+    setI(i + 1);
+    setAns({});
+    setChecked(false);
+    setResult(null);
+  };
+
+  const chipStyle = (f, o) => {
+    const picked = ans[f.key] === o;
+    if (!checked) return { ...styles.chip, ...(picked ? styles.chipOn : null) };
+    const right = recVal(result.best, f.key) === o;
+    if (picked && right) return { ...styles.chip, ...styles.chipOk };
+    if (picked) return { ...styles.chip, ...styles.chipBad };
+    if (right) return { ...styles.chip, ...styles.chipShow };
+    return styles.chip;
+  };
+
+  const distinct = [...new Set(valid.map(parseText))];
+
+  return (
+    <section>
+      <NavBar onBack={() => setStage('setup')} onHome={onHome} right={(i + 1) + ' of ' + qs.length} />
+      <div style={{ ...styles.panel, textAlign: 'center' }}>
+        <p style={styles.sub}>Parse this form{kind === 'v' ? ' (indicative mood)' : ''}</p>
+        <div style={styles.bigForm}>{form}</div>
+      </div>
+
+      <div style={styles.panel}>
+        {fields.map((f) => (
+          <div key={f.key} style={styles.fieldRow}>
+            <div style={styles.fieldLabel}>{f.label}</div>
+            <div style={styles.chips}>
+              {f.opts.map((o) => (
+                <button
+                  key={o}
+                  disabled={checked}
+                  onClick={() => setAns((a) => ({ ...a, [f.key]: o }))}
+                  style={chipStyle(f, o)}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!checked ? (
+        <Btn disabled={!ready} onClick={check}>Check</Btn>
+      ) : (
+        <div style={styles.panel}>
+          <p style={{ ...styles.h2, color: result.correct ? 'var(--good)' : 'var(--bad)' }}>
+            {result.correct ? 'Correct' : 'Not quite'}
+          </p>
+          <p style={styles.parseLine}>
+            {result.correct ? parseText(result.best) : distinct.join('  —or—  ')}
+          </p>
+          {result.correct && distinct.length > 1 && (
+            <p style={styles.sub}>This form can also be: {distinct.filter((d) => d !== parseText(result.best)).join('  —or—  ')}</p>
+          )}
+          <Btn onClick={next} style={{ marginBottom: 0 }}>{i + 1 >= qs.length ? 'Finish' : 'Next form'}</Btn>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---------------- app ---------------- */
 export default function App() {
-  const [screen, setScreen] = useState('home'); // home | vocab | paradigms
+  const [screen, setScreen] = useState('home'); // home | vocab | paradigms | parsing
   const [dark, setDark] = useState(
     () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
   );
@@ -1941,10 +2223,15 @@ export default function App() {
       <style>{globalCss}</style>
       <div style={styles.wrap}>
         {screen === 'home' && (
-          <Home onVocab={() => setScreen('vocab')} onParadigms={() => setScreen('paradigms')} />
+          <Home
+            onVocab={() => setScreen('vocab')}
+            onParadigms={() => setScreen('paradigms')}
+            onParsing={() => setScreen('parsing')}
+          />
         )}
         {screen === 'vocab' && <Vocab onHome={() => setScreen('home')} />}
         {screen === 'paradigms' && <Paradigms onHome={() => setScreen('home')} />}
+        {screen === 'parsing' && <Parsing onHome={() => setScreen('home')} />}
       </div>
     </div>
   );
@@ -2021,6 +2308,19 @@ const styles = {
   row: { display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 },
   top: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 },
   count: { color: 'var(--muted)', margin: '10px 0 0' },
+  nav: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 0',
+    marginBottom: 10,
+    background: 'var(--bg)',
+    borderBottom: '1px solid var(--line)',
+  },
+  navRight: { marginLeft: 'auto', color: 'var(--muted)', fontSize: 14, textAlign: 'right' },
 
   /* chapter chips + direction switch */
   chips: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -2151,4 +2451,13 @@ const styles = {
   },
   tileSel: { background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' },
   score: { fontFamily: '"Gentium Plus", serif', fontSize: 30, margin: '0 0 4px' },
+
+  /* parsing practice */
+  bigForm: { fontFamily: '"Gentium Plus", serif', fontSize: 44, lineHeight: 1.2, overflowWrap: 'anywhere' },
+  fieldRow: { marginBottom: 12 },
+  fieldLabel: { fontSize: 13, color: 'var(--muted)', marginBottom: 4 },
+  chipOk: { background: 'var(--goodbg)', color: 'var(--good)', border: '1px solid var(--good)' },
+  chipBad: { background: 'var(--badbg)', color: 'var(--bad)', border: '1px solid var(--bad)', textDecoration: 'line-through' },
+  chipShow: { color: 'var(--good)', border: '2px solid var(--good)' },
+  parseLine: { fontFamily: '"Gentium Plus", serif', fontSize: 19, margin: '0 0 12px' },
 };
