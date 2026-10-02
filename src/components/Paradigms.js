@@ -5,6 +5,7 @@ import ParadigmTable from './paradigms/ParadigmTable';
 
 // Build-the-paradigm game: holds the state, the screens live in ./paradigms
 export default function Paradigms({ onHome }) {
+  const [section, setSection] = useState(null); // chapter heading that is open, or null for the list of headings
   const [game, setGame] = useState(null); // { p, answers, tiles }
   const [placed, setPlaced] = useState([]); // tile id (or null) for each cell
   const [sel, setSel] = useState(null); // tile that is selected
@@ -35,7 +36,9 @@ export default function Paradigms({ onHome }) {
     place(idx, sel);
   };
 
-  if (!game) return <ParadigmList onPick={start} onHome={onHome} />;
+  if (!game) {
+    return <ParadigmList section={section} onSection={setSection} onPick={start} onHome={onHome} />;
+  }
 
   return (
     <ParadigmTable
