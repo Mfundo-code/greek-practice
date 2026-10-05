@@ -3,10 +3,12 @@ import Home from './components/Home';
 import Vocab from './components/Vocab';
 import Paradigms from './components/Paradigms';
 import Parsing from './components/Parsing';
+import Roots from './components/Roots';
+import PrincipalParts from './components/PrincipalParts';
 
 /* ============================================================
    Greek Trainer — App shell.
-   screens:  home | vocab | paradigms | parsing
+   screens:  home | vocab | paradigms | parsing | roots | parts
    ============================================================ */
 export default function App() {
   const [screen, setScreen] = useState('home');
@@ -54,11 +56,15 @@ export default function App() {
             onVocab={() => setScreen('vocab')}
             onParadigms={() => setScreen('paradigms')}
             onParsing={() => setScreen('parsing')}
+            onRoots={() => setScreen('roots')}
+            onParts={() => setScreen('parts')}
           />
         )}
         {screen === 'vocab' && <Vocab onHome={goHome} />}
         {screen === 'paradigms' && <Paradigms onHome={goHome} />}
         {screen === 'parsing' && <Parsing onHome={goHome} />}
+        {screen === 'roots' && <Roots onHome={goHome} />}
+        {screen === 'parts' && <PrincipalParts onHome={goHome} />}
       </div>
     </div>
   );
